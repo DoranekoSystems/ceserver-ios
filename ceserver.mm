@@ -97,7 +97,6 @@ int DispatchCommand(int currentsocket, unsigned char command) {
 
   int r;
 
-  // if (command != 8 && command != 9) {
   // printf("command:%d\n", command);
 
   switch (command) {
@@ -251,43 +250,43 @@ int DispatchCommand(int currentsocket, unsigned char command) {
       uint32_t symbolpathsize;
     } input;
 
-    if (recvall(currentsocket, &input, sizeof(input), MSG_WAITALL) > 0) {
+    // if (recvall(currentsocket, &input, sizeof(input), MSG_WAITALL) > 0) {
+    // if (input.fileoffset)
+    // debug_log("CMD_GETSYMBOLLISTFROMFILE with fileoffset=%x\n",
+    //         input.fileoffset);
+
+    char *symbolpath = (char *)malloc(input.symbolpathsize + 1);
+    symbolpath[input.symbolpathsize] = '\0';
+
+    if (recvall(currentsocket, symbolpath, input.symbolpathsize, MSG_WAITALL) >
+        0) {
+      unsigned char *output = NULL;
+
       if (input.fileoffset)
-        debug_log("CMD_GETSYMBOLLISTFROMFILE with fileoffset=%x\n",
-                  input.fileoffset);
+        debug_log("symbolpath=%s\n", symbolpath);
 
-      char *symbolpath = (char *)malloc(input.symbolpathsize + 1);
-      symbolpath[input.symbolpathsize] = '\0';
-
-      if (recvall(currentsocket, symbolpath, input.symbolpathsize,
-                  MSG_WAITALL) > 0) {
-        unsigned char *output = NULL;
-
-        if (input.fileoffset)
-          debug_log("symbolpath=%s\n", symbolpath);
-
-        if (output) {
-          if (input.fileoffset) {
-            debug_log("output is not NULL (%p)\n", output);
-            debug_log("Sending %d bytes\n", *(uint32_t *)&output[4]);
-            fflush(stdout);
-          }
-          sendall(currentsocket, output, *(uint32_t *)&output[4],
-                  0); // the output buffer contains the size itself
-          free(output);
-        } else {
-          if (input.fileoffset)
-            debug_log("Sending 8 bytes (fail)\n");
-
-          uint64_t fail = 0;
-          sendall(currentsocket, &fail, sizeof(fail), 0); // just write 0
+      if (output) {
+        if (input.fileoffset) {
+          debug_log("output is not NULL (%p)\n", output);
+          debug_log("Sending %d bytes\n", *(uint32_t *)&output[4]);
+          fflush(stdout);
         }
+        sendall(currentsocket, output, *(uint32_t *)&output[4],
+                0); // the output buffer contains the size itself
+        free(output);
       } else {
-        // debug_log("Failure getting symbol path\n");
-        close(currentsocket);
+        if (input.fileoffset)
+          debug_log("Sending 8 bytes (fail)\n");
+
+        uint64_t fail = 0;
+        sendall(currentsocket, &fail, sizeof(fail), 0); // just write 0
       }
-      free(symbolpath);
+    } else {
+      // debug_log("Failure getting symbol path\n");
+      close(currentsocket);
     }
+    free(symbolpath);
+    //}
     break;
   }
 
@@ -311,7 +310,7 @@ int DispatchCommand(int currentsocket, unsigned char command) {
         r->modulebase = me.baseAddress;
         r->modulesize = me.moduleSize;
         r->modulenamesize = strlen(me.moduleName);
-        r->modulefileoffset = me.fileOffset;
+        // r->modulefileoffset = me.fileOffset;
         r->modulepart = me.part;
 
         // Sending %s size %x\n, me.moduleName, r->modulesize
@@ -497,6 +496,46 @@ int DispatchCommand(int currentsocket, unsigned char command) {
     }
     break;
   }
+  case CMD_WRITEPROCESSMEMORY: {
+    CeWriteProcessMemoryInput c;
+
+    debug_log("CMD_WRITEPROCESSMEMORY:\n");
+
+    r = recvall(currentsocket, &c, sizeof(c), MSG_WAITALL);
+    if (r > 0) {
+      CeWriteProcessMemoryOutput o;
+      unsigned char *buf;
+
+      debug_log("recv returned %d bytes\n", r);
+      debug_log("c.size=%d\n", c.size);
+
+      if (c.size) {
+        buf = (unsigned char *)malloc(c.size);
+
+        r = recvall(currentsocket, buf, c.size, MSG_WAITALL);
+        if (r > 0) {
+          debug_log("received %d bytes for the buffer. Wanted %d\n", r, c.size);
+          o.written = WriteProcessMemory(c.handle, (void *)(uintptr_t)c.address,
+                                         buf, c.size);
+
+          r = sendall(currentsocket, &o, sizeof(CeWriteProcessMemoryOutput), 0);
+          debug_log("wpm: returned %d bytes to caller\n", r);
+
+        } else
+          debug_log("wpm recv error while reading the data\n");
+
+        free(buf);
+      } else {
+        debug_log("wpm with a size of 0 bytes");
+        o.written = 0;
+        r = sendall(currentsocket, &o, sizeof(CeWriteProcessMemoryOutput), 0);
+        debug_log("wpm: returned %d bytes to caller\n", r);
+      }
+    } else {
+      debug_log("RPM: recv failed\n");
+    }
+    break;
+  }
   case CMD_VIRTUALQUERYEXFULL: {
     CeVirtualQueryExFullInput c;
 
@@ -588,11 +627,10 @@ int DispatchCommand(int currentsocket, unsigned char command) {
             m = (PCeModuleEntry)&outputstream[pos];
             m->modulebase = me.baseAddress;
             m->modulesize = me.moduleSize;
-            m->modulefileoffset = me.fileOffset;
+            // m->modulefileoffset = me.fileOffset;
             m->modulenamesize = namelen;
             m->modulepart = me.part;
             m->result = 1;
-
             // Sending %s size %x\n, me.moduleName, r->modulesize
             memcpy((char *)m + sizeof(CeModuleEntry), me.moduleName, namelen);
 
@@ -615,7 +653,6 @@ int DispatchCommand(int currentsocket, unsigned char command) {
         eol.result = 0;
         eol.modulenamesize = 0;
         sendall(currentsocket, &eol, sizeof(eol), 0);
-
         free(outputstream);
 
         if (r)

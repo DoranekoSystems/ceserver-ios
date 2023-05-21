@@ -13,6 +13,16 @@ extern "C" kern_return_t mach_vm_read_overwrite(vm_map_t, mach_vm_address_t,
                                                 mach_vm_address_t,
                                                 mach_vm_size_t *);
 
+extern "C" kern_return_t mach_vm_write(vm_map_t, mach_vm_address_t, vm_offset_t,
+                                       mach_msg_type_number_t);
+
+extern "C" kern_return_t mach_vm_protect(vm_map_t, mach_vm_address_t,
+                                         mach_vm_size_t, boolean_t, vm_prot_t);
+
+extern "C" kern_return_t
+mach_vm_region(vm_map_t, mach_vm_address_t, mach_vm_size_t, vm_region_flavor_t,
+               vm_region_info_t, mach_msg_type_number_t *, mach_port_t *);
+
 int debug_log(const char *format, ...) {
   va_list list;
   va_start(list, format);
@@ -25,7 +35,7 @@ int debug_log(const char *format, ...) {
 int getArchitecture(HANDLE hProcess) {
   if (GetHandleType(hProcess) == htProcesHandle) {
     PProcessData p = (PProcessData)GetPointerFromHandle(hProcess);
-    if (true) //(p->is64bit)
+    if (p->is64bit)
 #if defined(__arm__) || defined(__aarch64__)
       return 3;
     else
@@ -68,9 +78,26 @@ HANDLE OpenProcess(DWORD pid) {
   p->pid = pid;
   p->path = strdup("");
   p->task = task;
+  p->is64bit = 1;
 
   HANDLE result = CreateHandleFromPointer(p, htProcesHandle);
   return result;
+}
+
+int WriteProcessMemory(HANDLE hProcess, void *lpAddress, void *buffer,
+                       int size) {
+  if (GetHandleType(hProcess) == htProcesHandle) {
+    PProcessData p = (PProcessData)GetPointerFromHandle(hProcess);
+
+    kern_return_t kr = mach_vm_write(p->task, (mach_vm_address_t)lpAddress,
+                                     (vm_offset_t)buffer, size);
+    if (kr != KERN_SUCCESS) {
+      debug_log("Failed to mach_vm_write\n");
+      return 0;
+    }
+    return size;
+  }
+  return 0;
 }
 
 int ReadProcessMemory(HANDLE hProcess, void *lpAddress, void *buffer,
@@ -81,12 +108,25 @@ int ReadProcessMemory(HANDLE hProcess, void *lpAddress, void *buffer,
     kern_return_t kr =
         mach_vm_read_overwrite(p->task, (mach_vm_address_t)lpAddress, size,
                                (mach_vm_address_t)buffer, &size_out);
-    if (kr != 0) {
+    if (kr != KERN_SUCCESS) {
       return 0;
     }
     return size_out;
   }
   return 0;
+}
+
+int compare_module(const void *a, const void *b) {
+  PModuleListEntry moduleA = (PModuleListEntry)a;
+  PModuleListEntry moduleB = (PModuleListEntry)b;
+
+  if (moduleA->baseAddress < moduleB->baseAddress) {
+    return -1;
+  } else if (moduleA->baseAddress > moduleB->baseAddress) {
+    return 1;
+  } else {
+    return 0;
+  }
 }
 
 HANDLE CreateToolhelp32Snapshot(DWORD dwFlags, DWORD th32ProcessID) {
@@ -228,13 +268,12 @@ HANDLE CreateToolhelp32Snapshot(DWORD dwFlags, DWORD th32ProcessID) {
             mle->moduleName = strdup((const char *)fpath_addr);
           }
           mle->baseAddress = (unsigned long long)info[i].imageLoadAddress;
-          mle->fileOffset = 0;
+          // mle->fileOffset = 0;
           mle->moduleSize =
               GetModuleSize(p->task, (void *)mle->baseAddress, 0, 0);
           mle->part = 0;
           mle->is64bit = 1;
           ml->moduleCount++;
-
           if (ml->moduleCount >= max) {
             // printf("reallocate modulelist\n");
             max = max * 2;
@@ -246,6 +285,8 @@ HANDLE CreateToolhelp32Snapshot(DWORD dwFlags, DWORD th32ProcessID) {
             break;
         }
       }
+      qsort(ml->moduleList, ml->moduleCount, sizeof(ModuleListEntry),
+            compare_module);
     }
 
     CloseHandle(pHandle);
@@ -550,7 +591,6 @@ int VirtualQueryEx(HANDLE hProcess, void *lpAddress, PRegionInfo rinfo,
   if (GetHandleType(hProcess) == htProcesHandle) {
     PProcessData p = (PProcessData)GetPointerFromHandle(hProcess);
     rinfo->protection = 0;
-    // debug_log("%llx - %llx : %s\n", start,stop, protectionstring);
     vm_size_t size;
     natural_t depth = 0;
     mach_msg_type_number_t info_count = VM_REGION_SUBMAP_INFO_COUNT_64;
@@ -564,33 +604,30 @@ int VirtualQueryEx(HANDLE hProcess, void *lpAddress, PRegionInfo rinfo,
                                &info_count) != KERN_SUCCESS) {
         return 0;
       }
-      if (info.is_submap) {
-        depth++;
+
+      if ((uint64_t)lpAddress > start) {
+        rinfo->protection = PAGE_NOACCESS;
+        rinfo->type = 0;
+        rinfo->baseaddress = start;
+        rinfo->size = (uint64_t)lpAddress - start;
+        if (mapsline) {
+          mapsline[0] = '\x00';
+        }
       } else {
-        if ((uint64_t)lpAddress > start) {
-          rinfo->protection = PAGE_NOACCESS;
-          rinfo->type = 0;
-          rinfo->baseaddress = start;
-          rinfo->size = (uint64_t)lpAddress - start;
-          if (mapsline) {
+        rinfo->protection = ProtectionInfoToProtection(info.protection);
+        rinfo->type = ProtectionInfoToType(info.protection);
+        rinfo->baseaddress = (uint64_t)lpAddress;
+        rinfo->size = size;
+        if (mapsline) {
+          int ret = proc_regionfilename(p->pid, start, buf, sizeof(buf));
+          if (ret > 0) {
+            strcpy(mapsline, buf);
+          } else {
             mapsline[0] = '\x00';
           }
-        } else {
-          rinfo->protection = ProtectionInfoToProtection(info.protection);
-          rinfo->type = ProtectionInfoToType(info.protection);
-          rinfo->baseaddress = (uint64_t)lpAddress;
-          rinfo->size = size;
-          if (mapsline) {
-            int ret = proc_regionfilename(p->pid, start, buf, sizeof(buf));
-            if (ret > 0) {
-              strcpy(mapsline, buf);
-            } else {
-              mapsline[0] = '\x00';
-            }
-          }
         }
-        break;
       }
+      break;
     }
     return 1;
   }
