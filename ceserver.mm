@@ -97,9 +97,9 @@ int DispatchCommand(int currentsocket, unsigned char command) {
 
   int r;
 
-  /*if (command != 8 && command != 9) {
-    printf("command:%d\n", command);
-  }*/
+  // if (command != 8 && command != 9) {
+  // printf("command:%d\n", command);
+
   switch (command) {
   case CMD_GETVERSION: {
     PCeVersion v;

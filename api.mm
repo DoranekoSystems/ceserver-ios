@@ -229,7 +229,8 @@ HANDLE CreateToolhelp32Snapshot(DWORD dwFlags, DWORD th32ProcessID) {
           }
           mle->baseAddress = (unsigned long long)info[i].imageLoadAddress;
           mle->fileOffset = 0;
-          mle->moduleSize = GetModuleSize(mle->moduleName, 0, 0);
+          mle->moduleSize =
+              GetModuleSize(p->task, (void *)mle->baseAddress, 0, 0);
           mle->part = 0;
           mle->is64bit = 1;
           ml->moduleCount++;
@@ -571,7 +572,9 @@ int VirtualQueryEx(HANDLE hProcess, void *lpAddress, PRegionInfo rinfo,
           rinfo->type = 0;
           rinfo->baseaddress = start;
           rinfo->size = (uint64_t)lpAddress - start;
-          mapsline[0] = '\x00';
+          if (mapsline) {
+            mapsline[0] = '\x00';
+          }
         } else {
           rinfo->protection = ProtectionInfoToProtection(info.protection);
           rinfo->type = ProtectionInfoToType(info.protection);
