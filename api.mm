@@ -460,7 +460,7 @@ DWORD ProtectionInfoToType(int protectioninfo) {
 }
 
 uint32_t ProtectionInfoToProtection(int protectioninfo) {
-  int w, x;
+  int r, w, x;
 
   if (protectioninfo & VM_PROT_EXECUTE)
     x = 1;
@@ -471,6 +471,14 @@ uint32_t ProtectionInfoToProtection(int protectioninfo) {
     w = 1;
   else
     w = 0;
+
+  if (protectioninfo & VM_PROT_READ)
+    r = 1;
+  else
+    r = 0;
+
+  if (!r)
+    return PAGE_NOACCESS;
 
   if (x) {
     // executable
