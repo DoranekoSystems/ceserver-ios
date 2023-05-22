@@ -1,9 +1,11 @@
 # ceserver-ios
 
-Porting ceserver to iOS.Dynamic analysis is possible with Cheat Engine.
+Porting ceserver to iOS.Dynamic analysis is possible with Cheat Engine.  
+It also works on macOS.  
 
 # Usage
 
+## iOS
 Jailbreaking of iphone is required.  
 Place your PC and iphone in the same network.  
 Place ceserver and Entitlements.plist in /usr/bin.
@@ -15,6 +17,12 @@ cd /usr/bin
 chmod a+x ceserver
 ldid -SEntitlements.plist ceserver
 ./ceserver
+```
+
+## Mac
+
+```
+sudo ./ceserver
 ```
 
 # Tested
@@ -34,4 +42,8 @@ ldid -SEntitlements.plist ceserver
 
 # Build
 
+## iOS
 `./build.sh`
+
+## Mac
+`make`
