@@ -17,7 +17,9 @@
 #include <thread>
 
 #include "api.h"
+#include "binaryio.h"
 #include "ceserver.h"
+#include "lldb-auto.h"
 #include "threads.h"
 
 #define CESERVERVERSION 6 // 6 because modulelist got changed
@@ -30,74 +32,85 @@ __thread int debugfd;
 
 __thread char *threadname;
 
-ssize_t recvall(int s, void *buf, size_t size, int flags) {
-  ssize_t totalreceived = 0;
-  ssize_t sizeleft = size;
-  unsigned char *buffer = (unsigned char *)buf;
+LLDBAutomation *lldb;
 
-  // enter recvall
-  flags = flags | MSG_WAITALL;
+std::map<int, std::string> command_map = {
+    {0, "CMD_GETVERSION"},
+    {1, "CMD_CLOSECONNECTION"},
+    {2, "CMD_TERMINATESERVER"},
+    {3, "CMD_OPENPROCESS"},
+    {4, "CMD_CREATETOOLHELP32SNAPSHOT"},
+    {5, "CMD_PROCESS32FIRST"},
+    {6, "CMD_PROCESS32NEXT"},
+    {7, "CMD_CLOSEHANDLE"},
+    {8, "CMD_VIRTUALQUERYEX"},
+    {9, "CMD_READPROCESSMEMORY"},
+    {10, "CMD_WRITEPROCESSMEMORY"},
+    {11, "CMD_STARTDEBUG"},
+    {12, "CMD_STOPDEBUG"},
+    {13, "CMD_WAITFORDEBUGEVENT"},
+    {14, "CMD_CONTINUEFROMDEBUGEVENT"},
+    {15, "CMD_SETBREAKPOINT"},
+    {16, "CMD_REMOVEBREAKPOINT"},
+    {17, "CMD_SUSPENDTHREAD"},
+    {18, "CMD_RESUMETHREAD"},
+    {19, "CMD_GETTHREADCONTEXT"},
+    {20, "CMD_SETTHREADCONTEXT"},
+    {21, "CMD_GETARCHITECTURE"},
+    {22, "CMD_MODULE32FIRST"},
+    {23, "CMD_MODULE32NEXT"},
+    {24, "CMD_GETSYMBOLLISTFROMFILE"},
+    {25, "CMD_LOADEXTENSION"},
+    {26, "CMD_ALLOC"},
+    {27, "CMD_FREE"},
+    {28, "CMD_CREATETHREAD"},
+    {29, "CMD_LOADMODULE"},
+    {30, "CMD_SPEEDHACK_SETSPEED"},
+    {31, "CMD_VIRTUALQUERYEXFULL"},
+    {32, "CMD_GETREGIONINFO"},
+    {33, "CMD_GETABI"},
+    {34, "CMD_SET_CONNECTION_NAME"},
+    {35, "CMD_CREATETOOLHELP32SNAPSHOTEX"},
+    {36, "CMD_CHANGEMEMORYPROTECTION"},
+    {37, "CMD_GETOPTIONS"},
+    {38, "CMD_GETOPTIONVALUE"},
+    {39, "CMD_SETOPTIONVALUE"},
+    {40, "CMD_PTRACE_MMAP"},
+    {41, "CMD_OPENNAMEDPIPE"},
+    {42, "CMD_PIPEREAD"},
+    {43, "CMD_PIPEWRITE"},
+    {44, "CMD_GETCESERVERPATH"},
+    {45, "CMD_ISANDROID"},
+    {46, "CMD_LOADMODULEEX"},
+    {47, "CMD_SETCURRENTPATH"},
+    {48, "CMD_GETCURRENTPATH"},
+    {49, "CMD_ENUMFILES"},
+    {50, "CMD_GETFILEPERMISSIONS"},
+    {51, "CMD_SETFILEPERMISSIONS"},
+    {52, "CMD_GETFILE"},
+    {53, "CMD_PUTFILE"},
+    {54, "CMD_CREATEDIR"},
+    {55, "CMD_DELETEFILE"},
+    {200, "CMD_AOBSCAN"},
+    {255, "CMD_COMMANDLIST2"}};
 
-  while (sizeleft > 0) {
-    ssize_t i = recv(s, &buffer[totalreceived], sizeleft, flags);
-
-    if (i == 0) {
-      printf("recv returned 0\n");
-      return i;
-    }
-
-    if (i == -1) {
-      printf("recv returned -1\n");
-      if (errno == EINTR) {
-        printf("errno = EINTR\n");
-        i = 0;
-      } else {
-        printf("Error during recvall: %d. errno=%d\n", (int)i, errno);
-        return i; // read error, or disconnected
-      }
-    }
-
-    totalreceived += i;
-    sizeleft -= i;
+std::string get_command_name(int cmd) {
+  auto it = command_map.find(cmd);
+  if (it != command_map.end()) {
+    return it->second;
+  } else {
+    return "UNKNOWN_COMMAND";
   }
-
-  // leave recvall
-  return totalreceived;
-}
-
-ssize_t sendall(int s, void *buf, size_t size, int flags) {
-  ssize_t totalsent = 0;
-  ssize_t sizeleft = size;
-  unsigned char *buffer = (unsigned char *)buf;
-
-  while (sizeleft > 0) {
-    ssize_t i = send(s, &buffer[totalsent], sizeleft, flags);
-
-    if (i == 0) {
-      return i;
-    }
-
-    if (i == -1) {
-      if (errno == EINTR)
-        i = 0;
-      else {
-        printf("Error during sendall: %d. errno=%d\n", (int)i, errno);
-        return i;
-      }
-    }
-
-    totalsent += i;
-    sizeleft -= i;
-  }
-
-  return totalsent;
 }
 
 int DispatchCommand(int currentsocket, unsigned char command) {
 
   int r;
 
-  // printf("command:%d\n", command);
+  BinaryReader *reader = new BinaryReader(currentsocket);
+  BinaryWriter *writer = new BinaryWriter(currentsocket);
+  // printf("socket:%d command:%s\n", currentsocket,
+  //        get_command_name(command).c_str());
 
   switch (command) {
   case CMD_GETVERSION: {
@@ -692,7 +705,181 @@ int DispatchCommand(int currentsocket, unsigned char command) {
       close(currentsocket);
       return 0;
     }
+    break;
+  }
+  case CMD_STARTDEBUG: {
+    int32_t handle = reader->Read<int32_t>();
+    lldb = new LLDBAutomation("127.0.0.1", 1234);
+    PProcessData p = (PProcessData)GetPointerFromHandle(handle);
+    lldb->attach(p->pid);
+    std::thread t1(&LLDBAutomation::debugger_thread, lldb);
+    t1.detach();
+    std::thread t2(&LLDBAutomation::interrupt_func, lldb);
+    t2.detach();
+    CustomDebugEvent *event = new CustomDebugEvent();
+    event->debugevent = -2;
+    event->threadid = p->pid;
+    lldb->debugevent.push_back(*event);
+    writer->Write<int32_t>(1);
+    break;
+  }
 
+  case CMD_WAITFORDEBUGEVENT: {
+    int32_t handle = reader->Read<int32_t>();
+    int32_t timeout = reader->Read<int32_t>();
+    if (lldb->debugevent.size() > 0) {
+      writer->Write<int32_t>(1);
+      auto event = lldb->debugevent.back();
+      lldb->debugevent.pop_back();
+      int debugevent = event.debugevent;
+      int threadid = event.threadid;
+      if (debugevent == -2) {
+        writer->Write<int32_t>(debugevent);
+        writer->Write<int64_t>(threadid);
+        writer->Write<int8_t>(4);
+        writer->Write<int8_t>(4);
+        writer->Write<int8_t>(4);
+        // 5byte:0
+        writer->Write<int32_t>(0);
+        writer->Write<int8_t>(0);
+      } else if (debugevent == 5) {
+        lldb->register_info = event.register_;
+        writer->Write<int32_t>(debugevent);
+        writer->Write<int64_t>(threadid);
+        writer->Write<uint64_t>(event.address);
+      }
+    } else {
+      usleep(100000); // 0.1
+      writer->Write<int32_t>(0);
+    }
+    break;
+  }
+  case CMD_CONTINUEFROMDEBUGEVENT: {
+    int handle = reader->Read<int32_t>();
+    int tid = reader->Read<int32_t>();
+    int ignore = reader->Read<int32_t>();
+    lldb->continue_queue.put(std::make_pair(ignore, tid));
+    writer->Write<int32_t>(1);
+    break;
+  }
+  case CMD_SETBREAKPOINT: {
+    int handle = reader->Read<int32_t>();
+    int tid = reader->Read<int32_t>();
+    int debugreg = reader->Read<int32_t>();
+    uint64_t address = reader->Read<uint64_t>();
+    int bptype = reader->Read<int32_t>();
+    int bpsize = reader->Read<int32_t>();
+    auto wp = lldb->wpinfo[debugreg];
+    // auto
+    if (tid != -1) {
+      if (lldb->is_stopped) {
+        lldb->set_watchpoint(address, wp.bpsize, wp.type);
+      }
+      writer->Write<int32_t>(1);
+    }
+    // manual
+    else {
+      bool enabled = false;
+      if (wp.switch_ == false && wp.enabled == false) {
+        char _type;
+        switch (bptype) {
+        case 0: {
+          _type = 'x';
+          bpsize = 4;
+          break;
+        }
+        case 1: {
+          _type = 'w';
+          break;
+        }
+        case 2: {
+          _type = 'r';
+          break;
+        }
+        case 3: {
+          _type = 'a';
+          break;
+        }
+        }
+        if (lldb->is_stopped) {
+          bool ret = lldb->set_watchpoint(address, bpsize, _type);
+          enabled = true;
+        } else {
+          printf("CMD_SETBREAKPOINT\n");
+          enabled = false;
+        }
+
+        WPInfo bp;
+        bp.address = address;
+        bp.bpsize = bpsize;
+        bp.type = _type;
+        bp.switch_ = true;
+        bp.enabled = enabled;
+        lldb->wpinfo[debugreg] = bp;
+        writer->Write<int32_t>(1);
+      } else {
+        writer->Write<int32_t>(0);
+      }
+    }
+    break;
+  }
+  case CMD_REMOVEBREAKPOINT: {
+    int handle = reader->Read<int32_t>();
+    int tid = reader->Read<int32_t>();
+    int debugreg = reader->Read<int32_t>();
+    int wasWatchpoint = reader->Read<int32_t>();
+    auto wp = lldb->wpinfo[debugreg];
+    if (tid != -1) {
+      if (lldb->is_stopped) {
+        lldb->remove_watchpoint(wp.address, wp.bpsize, wp.type);
+      }
+      writer->Write<int32_t>(1);
+    } else {
+      if (wp.switch_ == true && wp.enabled == true) {
+        if (lldb->is_stopped) {
+          bool ret = lldb->remove_watchpoint(wp.address, wp.bpsize, wp.type);
+          if (ret) {
+            lldb->wpinfo[debugreg].enabled = false;
+          }
+        } else {
+          printf("CMD_REMOVEBREAKPOINT\n");
+        }
+        lldb->wpinfo[debugreg].switch_ = false;
+        writer->Write<int32_t>(1);
+      } else {
+        writer->Write<int32_t>(0);
+      }
+    }
+    break;
+  }
+  case CMD_GETTHREADCONTEXT: {
+    int handle = reader->Read<int32_t>();
+    int tid = reader->Read<int32_t>();
+    writer->Write<int32_t>(1);
+    writer->Write<int32_t>(808);
+    writer->Write<int32_t>(808);
+    writer->Write<int32_t>(3);
+    if (lldb->register_info.size() > 0) {
+      for (auto value : lldb->register_info) {
+        writer->Write<uint64_t>(value);
+      }
+    } else {
+      char buf[8 * 34];
+      memset(buf, 0, 8 * 34);
+      sendall(currentsocket, buf, 8 * 34, 0);
+    }
+    char buf[16 * 33];
+    memset(buf, 0, 16 * 33);
+    sendall(currentsocket, buf, 16 * 33, 0);
+    break;
+  }
+  case CMD_SETTHREADCONTEXT: {
+    int handle = reader->Read<int32_t>();
+    int tid = reader->Read<int32_t>();
+    int structsize = reader->Read<int32_t>();
+    char buf[structsize];
+    recvall(currentsocket, buf, structsize, 0);
+    writer->Write<int32_t>(1);
     break;
   }
   }
