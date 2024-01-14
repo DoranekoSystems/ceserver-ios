@@ -323,7 +323,7 @@ int DispatchCommand(int currentsocket, unsigned char command) {
         r->modulebase = me.baseAddress;
         r->modulesize = me.moduleSize;
         r->modulenamesize = strlen(me.moduleName);
-        // r->modulefileoffset = me.fileOffset;
+        r->modulefileoffset = me.fileOffset;
         r->modulepart = me.part;
 
         // Sending %s size %x\n, me.moduleName, r->modulesize
@@ -881,6 +881,9 @@ int DispatchCommand(int currentsocket, unsigned char command) {
     recvall(currentsocket, buf, structsize, 0);
     writer->Write<int32_t>(1);
     break;
+  }
+  case CMD_ISANDROID: {
+    writer->Write<int8_t>(1);
   }
   }
   return 1;

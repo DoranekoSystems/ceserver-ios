@@ -1,11 +1,12 @@
 # ceserver-ios
 
 Porting ceserver to iOS.Dynamic analysis is possible with Cheat Engine.  
-It also works on macOS.  
+It also works on macOS.
 
 # Usage
 
 ## iOS
+
 Jailbreaking of iphone is required.  
 Place your PC and iphone in the same network.  
 Place ceserver and Entitlements.plist in /usr/bin.
@@ -27,9 +28,8 @@ sudo ./ceserver
 
 # Tested
 
-- Windows:CE 7.5(patreon)  
-  => Note:The module size is inaccurate, whether due to CE or not.
-- Mac:CE 7.4.3(patreon)
+- Windows:CE 7.5.2(patreon)
+- Mac:CE 7.5.2(patreon)
 
 # Project Status
 
@@ -43,7 +43,9 @@ sudo ./ceserver
 # Build
 
 ## iOS
+
 `./build.sh`
 
 ## Mac
+
 `make`
