@@ -21,7 +21,7 @@ ldid -SEntitlements.plist ceserver
 ./ceserver
 ```
 
-### without a Jailbroken iPhone.
+### without a Jailbroken iPhone
 
 Set up the same way as FridaGadget to force loading of libceserver.dylib.  
 Connect to the network from CE as usual.  
