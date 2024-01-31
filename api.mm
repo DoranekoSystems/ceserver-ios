@@ -26,10 +26,13 @@ mach_vm_region(vm_map_t, mach_vm_address_t, mach_vm_size_t, vm_region_flavor_t,
 int debug_log(const char *format, ...) {
   va_list list;
   va_start(list, format);
-  int ret = vprintf(format, list);
+  NSString *originalFormatString = [NSString stringWithUTF8String:format];
+  NSString *taggedFormatString =
+      [NSString stringWithFormat:@"[CESERVER] %@", originalFormatString];
+
+  NSLogv(taggedFormatString, list);
   va_end(list);
-  fflush(stdout);
-  return ret;
+  return 0;
 }
 
 int getArchitecture(HANDLE hProcess) {
@@ -62,13 +65,18 @@ HANDLE OpenProcess(DWORD pid) {
     return handle;
   }
 
+#ifdef DYNAMIC_LIB
+  mach_port_t task;
+  task = mach_task_self();
+#else
+
   mach_port_t task;
   kern_return_t err = task_for_pid(mach_task_self(), pid, &task);
   if (err != KERN_SUCCESS) {
     debug_log("Failed to get task for pid %d\n", pid);
     return 0;
   }
-
+#endif
   // create a process info structure and return a handle to it
   PProcessData p = (PProcessData)malloc(sizeof(ProcessData));
 
@@ -154,6 +162,13 @@ HANDLE CreateToolhelp32Snapshot(DWORD dwFlags, DWORD th32ProcessID) {
 
     result = NULL;
     done = false;
+
+#ifdef DYNAMIC_LIB
+    pl->processList[0].PID = getpid();
+    pl->processList[0].ProcessName = strdup("self");
+    pl->processCount++;
+    return CreateHandleFromPointer(pl, htTHSProcess);
+#endif
     do {
 
       length = 0;

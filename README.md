@@ -7,7 +7,8 @@ It also works on macOS.
 
 ## iOS
 
-Jailbreaking of iphone is required.  
+### with a Jailbroken iPhone
+
 Place your PC and iphone in the same network.  
 Place ceserver and Entitlements.plist in /usr/bin.
 
@@ -19,6 +20,13 @@ chmod a+x ceserver
 ldid -SEntitlements.plist ceserver
 ./ceserver
 ```
+
+### without a Jailbroken iPhone.
+
+Set up the same way as FridaGadget to force loading of libceserver.dylib.  
+Connect to the network from CE as usual.  
+The debugger does not work.  
+Log output is written to NSLog.
 
 ## Mac
 

@@ -142,7 +142,7 @@ int DispatchCommand(int currentsocket, unsigned char command) {
     break;
   }
   case CMD_SET_CONNECTION_NAME: {
-    printf("CMD_SET_CONNECTION_NAME\n");
+    debug_log("CMD_SET_CONNECTION_NAME\n");
     uint32_t namelength;
 
     if (recvall(currentsocket, &namelength, sizeof(namelength), MSG_WAITALL) >
@@ -158,7 +158,7 @@ int DispatchCommand(int currentsocket, unsigned char command) {
       }
       threadname = strdup(name);
 
-      printf("This thread is called %s\n", name);
+      debug_log("This thread is called %s\n", name);
     }
 
     fflush(stdout);
@@ -241,13 +241,13 @@ int DispatchCommand(int currentsocket, unsigned char command) {
     if (r > 0) {
       int processhandle;
 
-      printf("OpenProcess(%d)\n", pid);
+      debug_log("OpenProcess(%d)\n", pid);
       processhandle = OpenProcess(pid);
 
-      printf("processhandle=%d\n", processhandle);
+      debug_log("processhandle=%d\n", processhandle);
       sendall(currentsocket, &processhandle, sizeof(int), 0);
     } else {
-      printf("Error\n");
+      debug_log("Error\n");
       fflush(stdout);
       close(currentsocket);
       return 0;
@@ -430,7 +430,7 @@ int DispatchCommand(int currentsocket, unsigned char command) {
             if (r == Z_STREAM_END)
               break;
             else {
-              printf("Error while compressing\n");
+              debug_log("Error while compressing\n");
               break;
             }
           }
@@ -440,7 +440,7 @@ int DispatchCommand(int currentsocket, unsigned char command) {
             currentBlock++;
             if (currentBlock >= maxBlocks) {
               // list was too short, reallocate
-              printf("Need to realloc the pointerlist (p1)\n");
+              debug_log("Need to realloc the pointerlist (p1)\n");
 
               maxBlocks *= 2;
               compressedBlocks = (unsigned char **)realloc(
@@ -461,7 +461,7 @@ int DispatchCommand(int currentsocket, unsigned char command) {
             break; // done
 
           if (r != Z_OK) {
-            printf("Failure while finishing compression:%d\n", r);
+            debug_log("Failure while finishing compression:%d\n", r);
             break;
           }
 
@@ -470,7 +470,7 @@ int DispatchCommand(int currentsocket, unsigned char command) {
             currentBlock++;
             if (currentBlock >= maxBlocks) {
               // list was too short, reallocate
-              printf("Need to realloc the pointerlist (p2)\n");
+              debug_log("Need to realloc the pointerlist (p2)\n");
               maxBlocks *= 2;
               compressedBlocks = (unsigned char **)realloc(
                   compressedBlocks, maxBlocks * sizeof(unsigned char *));
@@ -700,7 +700,7 @@ int DispatchCommand(int currentsocket, unsigned char command) {
       sendall(currentsocket, &result, sizeof(HANDLE), 0);
 
     } else {
-      printf("Error during read for CMD_CREATETOOLHELP32SNAPSHOT\n");
+      debug_log("Error during read for CMD_CREATETOOLHELP32SNAPSHOT\n");
       fflush(stdout);
       close(currentsocket);
       return 0;
@@ -805,7 +805,7 @@ int DispatchCommand(int currentsocket, unsigned char command) {
           bool ret = lldb->set_watchpoint(address, bpsize, _type);
           enabled = true;
         } else {
-          printf("CMD_SETBREAKPOINT\n");
+          debug_log("CMD_SETBREAKPOINT\n");
           enabled = false;
         }
 
@@ -842,7 +842,7 @@ int DispatchCommand(int currentsocket, unsigned char command) {
             lldb->wpinfo[debugreg].enabled = false;
           }
         } else {
-          printf("CMD_REMOVEBREAKPOINT\n");
+          debug_log("CMD_REMOVEBREAKPOINT\n");
         }
         lldb->wpinfo[debugreg].switch_ = false;
         writer->Write<int32_t>(1);
@@ -897,12 +897,12 @@ int newconnection(int currentsocket) {
     if (r == 1) {
       DispatchCommand(currentsocket, command);
     } else if (r == 0) {
-      printf("Peer has disconnected\n");
+      debug_log("Peer has disconnected\n");
       fflush(stdout);
       close(currentsocket);
       return 0;
     } else if (r == -1) {
-      printf("read error on socket\n");
+      debug_log("read error on socket\n");
       fflush(stdout);
       close(currentsocket);
       return 0;
@@ -920,7 +920,7 @@ int main() {
   int sock;
 
   initAPI();
-  printf("CEServer. Waiting for client connection\n");
+  debug_log("CEServer. Waiting for client connection\n");
   sock0 = socket(AF_INET, SOCK_STREAM, 0);
 
   addr.sin_family = AF_INET;
@@ -933,13 +933,13 @@ int main() {
 
   int l = listen(sock0, 32);
   if (l == 0)
-    printf("Listening success\n");
+    debug_log("Listening success\n");
   else
-    printf("listen=%d (error)\n", l);
+    debug_log("listen=%d (error)\n", l);
   len = sizeof(client);
   while (true) {
     sock = accept(sock0, (struct sockaddr *)NULL, NULL);
-    printf("accept=%d\n", sock);
+    debug_log("accept=%d\n", sock);
 
     fflush(stdout);
     setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char *)&yes, sizeof(yes));
@@ -947,3 +947,15 @@ int main() {
     th1.detach();
   }
 }
+
+#ifdef DYNAMIC_LIB
+__attribute__((constructor)) extern "C" int init() {
+  std::thread th(main);
+  th.detach();
+  return 1;
+}
+
+__attribute__((visibility("default"))) extern "C" void invoke_ceserver() {
+  return;
+}
+#endif

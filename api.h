@@ -24,10 +24,13 @@
 #include <sys/queue.h>
 #include <sys/sysctl.h>
 #include <unistd.h>
-//#include
+
+#import <Foundation/Foundation.h>
+
+// #include
 #include "porthelp.h"
 
-//#include <sys/ptrace.h>
+// #include <sys/ptrace.h>
 
 #ifdef __ANDROID__
 #include <android/log.h>
