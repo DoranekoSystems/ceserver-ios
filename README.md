@@ -1,6 +1,6 @@
 # ceserver-ios
 
-Porting ceserver to iOS.Dynamic analysis is possible with Cheat Engine.  
+Porting ceserver to iOS.No jailbreak is required for operation. 
 It also works on macOS.
 
 # Usage
