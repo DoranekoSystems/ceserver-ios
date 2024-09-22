@@ -1,0 +1,32 @@
+name: Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag (e.g., v1.0.0)"
+        required: true
+        default: "v1.0.0"
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Build for iOS
+        run: |
+          ./build.sh
+
+      - name: Upload ceserver Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ceserver-${{ env.VERSION }}
+          path: ceserver
+
+      - name: Upload libceserver Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: libceserver-${{ env.VERSION }}.dylib
+          path: libceserver.dylib

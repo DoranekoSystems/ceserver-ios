@@ -8,9 +8,10 @@
 #ifndef CESERVER_H_
 #define CESERVER_H_
 
-#include "porthelp.h"
 #include <stdint.h>
 #include <sys/types.h>
+
+#include "porthelp.h"
 
 #define CMD_GETVERSION 0
 #define CMD_CLOSECONNECTION 1
@@ -94,205 +95,240 @@
 // extern char *versionstring;
 
 #pragma pack(1)
-typedef struct {
-  int version;
-  unsigned char stringsize;
-  // append the versionstring
+typedef struct
+{
+    int version;
+    unsigned char stringsize;
+    // append the versionstring
 } CeVersion, *PCeVersion;
 
-typedef struct {
-  DWORD dwFlags;
-  DWORD th32ProcessID;
+typedef struct
+{
+    DWORD dwFlags;
+    DWORD th32ProcessID;
 } CeCreateToolhelp32Snapshot, *PCeCreateToolhelp32Snapshot;
 
-typedef struct {
-  int result;
-  int pid;
-  int processnamesize;
-  // processname
+typedef struct
+{
+    int result;
+    int pid;
+    int processnamesize;
+    // processname
 } CeProcessEntry, *PCeProcessEntry;
 
-typedef struct {
-  int32_t result;
-  int64_t modulebase;
-  int32_t modulepart;
-  int32_t modulesize;
-  uint32_t modulefileoffset;
-  int32_t modulenamesize;
+typedef struct
+{
+    int32_t result;
+    int64_t modulebase;
+    int32_t modulepart;
+    int32_t modulesize;
+    uint32_t modulefileoffset;
+    int32_t modulenamesize;
 } CeModuleEntry, *PCeModuleEntry;
 
-typedef struct {
-  int handle;
-  uint64_t baseaddress;
+typedef struct
+{
+    int handle;
+    uint64_t baseaddress;
 } CeVirtualQueryExInput, *PCeVirtualQueryExInput;
 
-typedef struct {
-  uint8_t result;
-  uint32_t protection;
-  uint32_t type;
-  uint64_t baseaddress;
-  uint64_t size;
+typedef struct
+{
+    uint8_t result;
+    uint32_t protection;
+    uint32_t type;
+    uint64_t baseaddress;
+    uint64_t size;
 } CeVirtualQueryExOutput, *PCeVirtualQueryExOutput;
 
-typedef struct {
-  int handle;
-  uint8_t flags;
+typedef struct
+{
+    int handle;
+    uint8_t flags;
 } CeVirtualQueryExFullInput, *PCeVirtualQueryExFullInput;
 
-typedef struct {
-  uint32_t protection;
-  uint32_t type;
-  uint64_t baseaddress;
-  uint64_t size;
+typedef struct
+{
+    uint32_t protection;
+    uint32_t type;
+    uint64_t baseaddress;
+    uint64_t size;
 } CeVirtualQueryExFullOutput, *PCeVirtualQueryExFullOutput;
 
-typedef struct {
-  uint32_t handle;
-  uint64_t address;
-  uint32_t size;
-  uint8_t compress;
+typedef struct
+{
+    uint32_t handle;
+    uint64_t address;
+    uint32_t size;
+    uint8_t compress;
 } CeReadProcessMemoryInput, *PCeReadProcessMemoryInput;
 
-typedef struct {
-  int read;
+typedef struct
+{
+    int read;
 } CeReadProcessMemoryOutput, *PCeReadProcessMemoryOutput;
 
-typedef struct {
-  int32_t handle;
-  int64_t address;
-  int32_t size;
+typedef struct
+{
+    int32_t handle;
+    int64_t address;
+    int32_t size;
 } CeWriteProcessMemoryInput, *PCeWriteProcessMemoryInput;
 
-typedef struct {
-  int32_t written;
+typedef struct
+{
+    int32_t written;
 } CeWriteProcessMemoryOutput, *PCeWriteProcessMemoryOutput;
 
-typedef struct {
-  HANDLE hProcess;
-  int tid;
-  int debugreg;
-  uint64_t Address;
-  int bptype;
-  int bpsize;
+typedef struct
+{
+    HANDLE hProcess;
+    int tid;
+    int debugreg;
+    uint64_t Address;
+    int bptype;
+    int bpsize;
 } CeSetBreapointInput, *PCeSetBreakpointInput;
 
-typedef struct {
-  int result;
+typedef struct
+{
+    int result;
 } CeSetBreapointOutput, *PCeSetBreakpointOutput;
 
-typedef struct {
-  HANDLE hProcess;
-  uint32_t tid;
-  uint32_t debugreg;
-  uint32_t wasWatchpoint;
+typedef struct
+{
+    HANDLE hProcess;
+    uint32_t tid;
+    uint32_t debugreg;
+    uint32_t wasWatchpoint;
 } CeRemoveBreapointInput, *PCeRemoveBreakpointInput;
 
-typedef struct {
-  int result;
+typedef struct
+{
+    int result;
 } CeRemoveBreapointOutput, *PCeRemoveBreakpointOutput;
 
-typedef struct {
-  HANDLE hProcess;
-  int tid;
+typedef struct
+{
+    HANDLE hProcess;
+    int tid;
 } CeSuspendThreadInput, *PCeSuspendThreadInput;
 
-typedef struct {
-  int result;
+typedef struct
+{
+    int result;
 } CeSuspendThreadOutput, *PCeSuspendThreadOutput;
 
-typedef struct {
-  HANDLE hProcess;
-  int tid;
+typedef struct
+{
+    HANDLE hProcess;
+    int tid;
 } CeResumeThreadInput, *PCeResumeThreadInput;
 
-typedef struct {
-  int result;
+typedef struct
+{
+    int result;
 } CeResumeThreadOutput, *PCeResumeThreadOutput;
 
-typedef struct {
-  HANDLE hProcess;
-  uint64_t preferedBase;
-  uint32_t size;
-  uint32_t windowsprotection;
+typedef struct
+{
+    HANDLE hProcess;
+    uint64_t preferedBase;
+    uint32_t size;
+    uint32_t windowsprotection;
 } CeAllocInput, *PCeAllocInput;
 
-typedef struct {
-  uint64_t address; // 0=fail
+typedef struct
+{
+    uint64_t address;  // 0=fail
 } CeAllocOutput, *PCeAllocOutput;
 
-typedef struct {
-  HANDLE hProcess;
-  uint64_t address;
-  uint32_t size;
+typedef struct
+{
+    HANDLE hProcess;
+    uint64_t address;
+    uint32_t size;
 } CeFreeInput, *PCeFreeInput;
 
-typedef struct {
-  uint32_t result;
+typedef struct
+{
+    uint32_t result;
 } CeFreeOutput, *PCeFreeOutput;
 
-typedef struct {
-  HANDLE hProcess;
-  uint64_t startaddress;
-  uint64_t parameter;
+typedef struct
+{
+    HANDLE hProcess;
+    uint64_t startaddress;
+    uint64_t parameter;
 } CeCreateThreadInput, *PCeCreateThreadInput;
 
-typedef struct {
-  HANDLE threadhandle;
+typedef struct
+{
+    HANDLE threadhandle;
 } CeCreateThreadOutput, *PCeCreateThreadOutput;
 
-typedef struct {
-  HANDLE hProcess;
-  uint32_t modulepathlength;
-  // modulepath
+typedef struct
+{
+    HANDLE hProcess;
+    uint32_t modulepathlength;
+    // modulepath
 } CeLoadModuleInput, *PCeLoadModuleInput;
 
-typedef struct {
-  HANDLE hProcess;
-  uint64_t dlopenaddress;
-  uint32_t modulepathlength;
-  // modulepath
+typedef struct
+{
+    HANDLE hProcess;
+    uint64_t dlopenaddress;
+    uint32_t modulepathlength;
+    // modulepath
 } CeLoadModuleInputEx, *PCeLoadModuleInputEx;
 
-typedef struct {
-  uint32_t result;
+typedef struct
+{
+    uint32_t result;
 } CeLoadModuleOutput, *PCeLoadModuleOutput;
 
-typedef struct {
-  HANDLE hProcess;
-  float speed;
+typedef struct
+{
+    HANDLE hProcess;
+    float speed;
 } CeSpeedhackSetSpeedInput, *PCeSpeedhackSetSpeedInput;
 
-typedef struct {
-  uint32_t result;
+typedef struct
+{
+    uint32_t result;
 } CeSpeedhackSetSpeedOutput, *PCeSpeedhackSetSpeedOutput;
 
-typedef struct {
-  HANDLE hProcess;
-  uint64_t address;
-  uint32_t size;
-  uint32_t windowsprotection;
+typedef struct
+{
+    HANDLE hProcess;
+    uint64_t address;
+    uint32_t size;
+    uint32_t windowsprotection;
 } CeChangeMemoryProtection, *PCeChangeMemoryProtection;
 
-typedef struct {
-  HANDLE hPipe;
-  uint32_t size;
-  uint32_t timeout;
+typedef struct
+{
+    HANDLE hPipe;
+    uint32_t size;
+    uint32_t timeout;
 } CeReadPipe, *PCeReadPipe;
 
-typedef struct {
-  HANDLE hPipe;
-  uint32_t size;
-  uint32_t timeout;
-  // data[size]
+typedef struct
+{
+    HANDLE hPipe;
+    uint32_t size;
+    uint32_t timeout;
+    // data[size]
 } CeWritePipe, *PCeWritePipe;
 
-typedef struct {
-  HANDLE hProcess;
-  uint64_t start;
-  uint64_t end;
-  int inc;
-  int protection;
-  int scansize;
+typedef struct
+{
+    HANDLE hProcess;
+    uint64_t start;
+    uint64_t end;
+    int inc;
+    int protection;
+    int scansize;
 } CeAobScanInput, *PCeAobScanInput;
 
 #pragma pack()

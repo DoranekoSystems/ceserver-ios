@@ -8,8 +8,9 @@
 #ifndef TREADS_H_
 #define TREADS_H_
 
-#include "api.h"
 #include <sys/queue.h>
+
+#include "api.h"
 
 void InitializeProcessThreadlist(PProcessData p);
 void AddThreadToProcess(PProcessData p, PThreadData threaddata);

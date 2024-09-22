@@ -10,7 +10,6 @@
 
 #include "api.h"
 
-unsigned long long GetModuleSize(task_t task, void *lpAddress,
-                                 uint32_t fileoffset,
+unsigned long long GetModuleSize(task_t task, void *lpAddress, uint32_t fileoffset,
                                  unsigned long long defaultsize);
 #endif /* SYMBOLS_H_ */
