@@ -1,5 +1,5 @@
 export SDKROOT=$(xcrun --sdk iphoneos --show-sdk-path)
-export VER_MIN=11.2
+export VER_MIN=12.0
 export CC=$(xcrun --sdk iphoneos --find clang) 
 export CXX=$(xcrun --sdk iphoneos --find clang++) 
 export LD=$(xcrun --sdk iphoneos --find ld) 
