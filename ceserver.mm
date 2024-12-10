@@ -16,11 +16,18 @@
 
 #include <thread>
 
+#include "SimpleIni.h"
 #include "api.h"
 #include "binaryio.h"
 #include "ceserver.h"
 #include "lldb-auto.h"
+#include "semver.hpp"
 #include "threads.h"
+
+namespace Config
+{
+    std::string ceVersion = "7.5.2";
+}
 
 #define CESERVERVERSION 6  // 6 because modulelist got changed
 #define MSG_MORE 0x10
@@ -112,8 +119,7 @@ int DispatchCommand(int currentsocket, unsigned char command)
 
     BinaryReader *reader = new BinaryReader(currentsocket);
     BinaryWriter *writer = new BinaryWriter(currentsocket);
-    // printf("socket:%d command:%s\n", currentsocket,
-    //        get_command_name(command).c_str());
+    // printf("socket:%d command:%s\n", currentsocket, get_command_name(command).c_str());
 
     switch (command)
     {
@@ -127,20 +133,51 @@ int DispatchCommand(int currentsocket, unsigned char command)
             versionsize += 3;
 #endif
             v = (PCeVersion)malloc(sizeof(CeVersion) + versionsize);
-            v->stringsize = versionsize;
-            v->version = CESERVERVERSION;
+            int version;
+            std::string versionString;
+
+            semver::version currentVersion;
+            currentVersion.from_string(Config::ceVersion);
+
+            if (currentVersion >= semver::version{"7.5.1"})
+            {
+                version = 6;
+                versionString = "CHEATENGINE Network 2.3";
+            }
+            else if (currentVersion >= semver::version{"7.4.3"})
+            {
+                version = 5;
+                versionString = "CHEATENGINE Network 2.2";
+            }
+            else if (currentVersion >= semver::version{"7.4.2"})
+            {
+                version = 4;
+                versionString = "CHEATENGINE Network 2.2";
+            }
+            else if (currentVersion >= semver::version{"7.3.2"})
+            {
+                version = 2;
+                versionString = "CHEATENGINE Network 2.1";
+            }
+            else
+            {
+                version = 1;
+                versionString = "CHEATENGINE Network 2.0";
+            }
+            v->version = version;
+            v->stringsize = versionString.size();
 
 #ifdef SHARED_LIBRARY
             memcpy((char *)v + sizeof(CeVersion), "lib",
                    3);  // tell ce it's the lib version
-            memcpy((char *)v + sizeof(CeVersion) + 3, versionstring, versionsize);
+            memcpy((char *)v + sizeof(CeVersion) + 3, versionString.c_str(), versionString.size());
 
 #else
-            memcpy((char *)v + sizeof(CeVersion), versionstring, versionsize);
+            memcpy((char *)v + sizeof(CeVersion), versionString.c_str(), versionString.size());
 #endif
 
             // version request
-            sendall(currentsocket, v, sizeof(CeVersion) + versionsize, 0);
+            sendall(currentsocket, v, sizeof(CeVersion) + versionString.size(), 0);
 
             free(v);
 
@@ -187,18 +224,30 @@ int DispatchCommand(int currentsocket, unsigned char command)
         {
             unsigned char arch;
             HANDLE h;
-            // ce 7.4.1+ : Added the processhandle
 
             debug_log("CMD_GETARCHITECTURE\n");
-
-            if (recvall(currentsocket, &h, sizeof(h), MSG_WAITALL) > 0)
+            semver::version v1{"7.4.2"};
+            semver::version v2;
+            v2.from_string(Config::ceVersion);
+            if (v2 >= v1)
             {
-                // intel i386=0
-                // intel x86_64=1
-                // arm 32 = 2
-                // arm 64 = 3
-                debug_log("(%d)", h);
-                arch = getArchitecture(h);
+                if (recvall(currentsocket, &h, sizeof(h), MSG_WAITALL) > 0)
+                {
+                    // intel i386=0
+                    // intel x86_64=1
+                    // arm 32 = 2
+                    // arm 64 = 3
+                    debug_log("(%d)", h);
+                    arch = getArchitecture(h);
+                }
+            }
+            else
+            {
+#if defined(__arm__) || defined(__aarch64__)
+                arch = 3;
+#else
+                arch = 1;
+#endif
             }
 
             debug_log("=%d\n", arch);
@@ -678,66 +727,79 @@ int DispatchCommand(int currentsocket, unsigned char command)
                 else if ((params.dwFlags & TH32CS_SNAPMODULE) == TH32CS_SNAPMODULE)
                 {
                     ModuleListEntry me;
-
                     char *outputstream;
                     int pos = 0;
-
-                    // debug_log("CMD_CREATETOOLHELP32SNAPSHOTEX with TH32CS_SNAPMODULE\n");
-
                     outputstream = (char *)malloc(65536);
                     memset(outputstream, 0, 65536);
 
+                    semver::version v1{"7.5.1"};
+                    semver::version v2;
+                    v2.from_string(Config::ceVersion);
+                    bool isNewVersion = v2 >= v1;
                     if (r && (Module32First(r, &me))) do
                         {
                             int namelen = strlen(me.moduleName);
-                            PCeModuleEntry m;
+                            size_t structSize =
+                                isNewVersion ? sizeof(CeModuleEntry) : sizeof(CeModuleEntryLegacy);
 
-                            if ((pos + sizeof(CeModuleEntry) + namelen) > 65536)
+                            if ((pos + structSize + namelen) > 65536)
                             {
-                                // flush the stream
-                                // debug_log("CMD_CREATETOOLHELP32SNAPSHOTEX: ModuleList flush in
-                                // loop\n");
                                 sendall(currentsocket, outputstream, pos, 0);
                                 pos = 0;
                             }
 
-                            m = (PCeModuleEntry)&outputstream[pos];
-                            m->modulebase = me.baseAddress;
-                            m->modulesize = me.moduleSize;
-                            // m->modulefileoffset = me.fileOffset;
-                            m->modulenamesize = namelen;
-                            m->modulepart = me.part;
-                            m->result = 1;
-                            // Sending %s size %x\n, me.moduleName, r->modulesize
-                            memcpy((char *)m + sizeof(CeModuleEntry), me.moduleName, namelen);
+                            if (isNewVersion)
+                            {
+                                auto *m = reinterpret_cast<CeModuleEntry *>(&outputstream[pos]);
+                                m->modulebase = me.baseAddress;
+                                m->modulesize = me.moduleSize;
+                                m->modulefileoffset = me.fileOffset;
+                                m->modulenamesize = namelen;
+                                m->modulepart = me.part;
+                                m->result = 1;
+                                memcpy((char *)m + sizeof(CeModuleEntry), me.moduleName, namelen);
+                            }
+                            else
+                            {
+                                auto *m =
+                                    reinterpret_cast<CeModuleEntryLegacy *>(&outputstream[pos]);
+                                m->modulebase = me.baseAddress;
+                                m->modulesize = me.moduleSize;
+                                m->modulenamesize = namelen;
+                                m->modulepart = me.part;
+                                m->result = 1;
+                                memcpy((char *)m + sizeof(CeModuleEntryLegacy), me.moduleName,
+                                       namelen);
+                            }
 
-                            pos += sizeof(CeModuleEntry) + namelen;
-
+                            pos += structSize + namelen;
                         } while (Module32Next(r, &me));
-
-                    if (pos)  // flush the stream
+                    if (pos)
                     {
-                        // debug_log("CMD_CREATETOOLHELP32SNAPSHOTEX: ModuleList flush after
-                        // loop\n");
                         sendall(currentsocket, outputstream, pos, 0);
                     }
 
-                    // send the end of list module
-                    // debug_log("CMD_CREATETOOLHELP32SNAPSHOTEX: ModuleList end of
-                    // list\n");
+                    if (isNewVersion)
+                    {
+                        CeModuleEntry eol = {0};
+                        eol.result = 0;
+                        eol.modulenamesize = 0;
+                        sendall(currentsocket, &eol, sizeof(CeModuleEntry), 0);
+                    }
+                    else
+                    {
+                        CeModuleEntryLegacy eol = {0};
+                        eol.result = 0;
+                        eol.modulenamesize = 0;
+                        sendall(currentsocket, &eol, sizeof(CeModuleEntryLegacy), 0);
+                    }
 
-                    CeModuleEntry eol;
-                    eol.result = 0;
-                    eol.modulenamesize = 0;
-                    sendall(currentsocket, &eol, sizeof(eol), 0);
                     free(outputstream);
-
                     if (r) CloseHandle(r);
                 }
                 else
                 {
-                    sendall(currentsocket, &r, sizeof(HANDLE),
-                            0);  // the others are not yet implemented
+                    sendall(currentsocket, &r, sizeof(HANDLE), 0);
                 }
             }
             else
@@ -1033,6 +1095,20 @@ int newconnection(int currentsocket)
 
 int main()
 {
+    CSimpleIniA ini;
+    ini.SetUnicode();
+    if (ini.LoadFile("config.ini") < 0)
+    {
+        debug_log("Failed to load config.ini. Using default configuration.");
+    }
+    else
+    {
+        const char *version = ini.GetValue("general", "ceversion", "7.5.2");
+        Config::ceVersion = version;
+    }
+
+    debug_log("CEVersion from config:%s", Config::ceVersion.c_str());
+
     int sock0;
     struct sockaddr_in addr;
     struct sockaddr_in client;

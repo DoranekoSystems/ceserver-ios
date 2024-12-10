@@ -1,6 +1,6 @@
 # ceserver-ios
 
-Porting ceserver to iOS.No jailbreak is required for operation. 
+Porting ceserver to iOS.No jailbreak is required for operation.
 It also works on macOS.
 
 # Usage
@@ -10,8 +10,8 @@ It also works on macOS.
 ### with a Jailbroken iPhone
 
 Place your PC and iphone in the same network.  
-Place ceserver and Entitlements.plist in /usr/bin.
-
+Place ceserver and Entitlements.plist in /usr/bin.  
+Place the `config.ini` file in the same folder as ceserver, including the ceversion.  
 Connect to the iphone via ssh.
 
 ```
@@ -57,3 +57,8 @@ sudo ./ceserver
 ## Mac
 
 `make`
+
+# Credits
+
+1. https://github.com/Neargye/semver
+1. https://github.com/brofield/simpleini

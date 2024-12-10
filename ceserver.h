@@ -12,6 +12,7 @@
 #include <sys/types.h>
 
 #include "porthelp.h"
+#include "semver.hpp"
 
 #define CMD_GETVERSION 0
 #define CMD_CLOSECONNECTION 1
@@ -125,6 +126,15 @@ typedef struct
     uint32_t modulefileoffset;
     int32_t modulenamesize;
 } CeModuleEntry, *PCeModuleEntry;
+
+typedef struct
+{
+    int32_t result;
+    int64_t modulebase;
+    int32_t modulepart;
+    int32_t modulesize;
+    int32_t modulenamesize;
+} CeModuleEntryLegacy, *PCeModuleEntryLegacy;
 
 typedef struct
 {
