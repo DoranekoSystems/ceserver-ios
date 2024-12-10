@@ -1,5 +1,4 @@
 name: Build
-
 on:
   workflow_dispatch:
     inputs:
@@ -11,7 +10,8 @@ on:
 jobs:
   build:
     runs-on: macos-latest
-
+    env:
+      VERSION: ${{ github.event.inputs.version }}
     steps:
       - uses: actions/checkout@v3
 
